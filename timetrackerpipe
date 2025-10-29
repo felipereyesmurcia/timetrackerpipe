@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Countdown & Goals Tracker</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { Calendar, Target, Heart, AlertTriangle, Plus, Trash2, Edit2, Check, X } = lucide;
+
+        const CountdownTracker = () => {
+          const [events, setEvents] = useState([]);
+          const [goals, setGoals] = useState([]);
+          const [habits, setHabits] = useState([]);
+          const [cautions, setCautions] = useState([]);
+          const [showEventForm, setShowEventForm] = useState(false);
+          const [editingId, setEditingId] = useState(null);
+          const [newEvent, setNewEvent] = useState({ name: '', date: '' });
+
+          useEffect(() => {
+            const savedEvents = localStorage.getItem('events');
+            const savedGoals = localStorage.getItem('goals');
+            const savedHabits = localStorage.getItem('habits');
+            const savedCautions = localStorage.getItem('cautions');
+            
+            if (savedEvents) setEvents(JSON.parse(savedEvents));
+            if (savedGoals) setGoals(JSON.parse(savedGoals));
+            if (savedHabits) setHabits(JSON.parse(savedHabits));
+            if (savedCautions) setCautions(JSON.parse(savedCautions));
+          }, []);
+
+          useEffect(() => {
+            localStorage.setItem('events', JSON.stringify(events));
+          }, [events]);
+
+          useEffect(() => {
+            localStorage.setItem('goals', JSON.stringify(goals));
+          }, [goals]);
+
+          useEffect(() => {
+            localStorage.setItem('habits', JSON.stringify(habits));
+          }, [habits]);
+
+          useEffect(() => {
+            localStorage.setItem('cautions', JSON.stringify(cautions));
+          }, [cautions]);
+
+          const calculateTimeLeft = (targetDate) => {
+            const now = new Date();
+            const target = new Date(targetDate);
+            const diff = target - now;
+
+            if (diff <= 0) return { days: 0, hours: 0, minutes: 0, expired: true };
+
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+            return { days, hours, minutes, expired: false };
+          };
+
+          const getUrgencyColor = (days) => {
+            if (days === 0) return 'bg-red-100 border-red-300';
+            if (days <= 7) return 'bg-red-50 border-red-200';
+            if (days <= 30) return 'bg-yellow-50 border-yellow-200';
+            return 'bg-green-50 border-green-200';
+          };
+
+          const addEvent = () => {
+            if (newEvent.name && newEvent.date) {
+              setEvents([...events, { id: Date.now(), ...newEvent }]);
+              setNewEvent({ name: '', date: '' });
+              setShowEventForm(false);
+            }
+          };
+
+          const deleteEvent = (id) => {
+            setEvents(events.filter(e => e.id !== id));
+          };
+
+          const addListItem = (setter, items, maxItems = 5) => {
+            if (items.length < maxItems) {
+              setter([...items, { id: Date.now(), text: '', editing: true }]);
+            }
+          };
+
+          const updateListItem = (setter, items, id, text) => {
+            setter(items.map(item => item.id === id ? { ...item, text, editing: false } : item));
+          };
+
+          const deleteListItem = (setter, items, id) => {
+            setter(items.filter(item => item.id !== id));
+          };
+
+          const toggleEdit = (setter, items, id) => {
+            setter(items.map(item => item.id === id ? { ...item, editing: !item.editing } : item));
+          };
+
+          const ListSection = ({ title, items, setter, icon: Icon, maxItems = 5 }) => (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Icon className="w-5 h-5 text-gray-600" />
+                  <h3 className="font-semibold text-gray-800">{title}</h3>
+                </div>
+                {items.length < maxItems && (
+                  <button
+                    onClick={() => addListItem(setter, items, maxItems)}
+                    className="p-1 hover:bg-gray-100 rounded"
+                  >
+                    <Plus className="w-4 h-4 text-gray-600" />
+                  </button>
+                )}
+              </div>
+              <div className="space-y-2">
+                {items.map(item => (
+                  <div key={item.id} className="flex items-center gap-2 bg-white p-2 rounded border border-gray-200">
+                    {item.editing ? (
+                      <>
+                        <input
+                          type="text"
+                          value={item.text}
+                          onChange={(e) => setter(items.map(i => i.id === item.id ? { ...i, text: e.target.value } : i))}
+                          className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                          placeholder="Enter text..."
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => updateListItem(setter, items, item.id, item.text)}
+                          className="p-1 hover:bg-green-100 rounded"
+                        >
+                          <Check className="w-4 h-4 text-green-600" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex-1 text-sm text-gray-700">{item.text}</span>
+                        <button
+                          onClick={() => toggleEdit(setter, items, item.id)}
+                          className="p-1 hover:bg-gray-100 rounded"
+                        >
+                          <Edit2 className="w-4 h-4 text-gray-600" />
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => deleteListItem(setter, items, item.id)}
+                      className="p-1 hover:bg-red-100 rounded"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-600" />
+                    </button>
+                  </div>
+                ))}
+                {items.length === 0 && (
+                  <p className="text-sm text-gray-400 italic">No items yet</p>
+                )}
+              </div>
+            </div>
+          );
+
+          return (
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+              <div className="max-w-7xl mx-auto">
+                <header className="mb-8">
+                  <h1 className="text-4xl font-bold text-gray-800 mb-2">Event Countdown Tracker</h1>
+                  <p className="text-gray-600">Track your important events and stay focused on your goals</p>
+                </header>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2">
+                    <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-2xl font-bold text-gray-800">Upcoming Events</h2>
+                        <button
+                          onClick={() => setShowEventForm(!showEventForm)}
+                          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add Event
+                        </button>
+                      </div>
+
+                      {showEventForm && (
+                        <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="space-y-3">
+                            <input
+                              type="text"
+                              placeholder="Event name"
+                              value={newEvent.name}
+                              onChange={(e) => setNewEvent({ ...newEvent, name: e.target.value })}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                            />
+                            <input
+                              type="datetime-local"
+                              value={newEvent.date}
+                              onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={addEvent}
+                                className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                              >
+                                Save Event
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setShowEventForm(false);
+                                  setNewEvent({ name: '', date: '' });
+                                }}
+                                className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {events.length === 0 ? (
+                          <div className="col-span-2 text-center py-12 text-gray-400">
+                            <Calendar className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                            <p>No events yet. Add your first event to get started!</p>
+                          </div>
+                        ) : (
+                          events.map(event => {
+                            const timeLeft = calculateTimeLeft(event.date);
+                            return (
+                              <div
+                                key={event.id}
+                                className={`p-4 rounded-lg border-2 ${getUrgencyColor(timeLeft.days)} transition-all hover:shadow-md`}
+                              >
+                                <div className="flex justify-between items-start mb-3">
+                                  <h3 className="font-semibold text-gray-800 text-lg">{event.name}</h3>
+                                  <button
+                                    onClick={() => deleteEvent(event.id)}
+                                    className="p-1 hover:bg-red-100 rounded"
+                                  >
+                                    <Trash2 className="w-4 h-4 text-red-600" />
+                                  </button>
+                                </div>
+                                {timeLeft.expired ? (
+                                  <p className="text-red-600 font-semibold">Event has passed</p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    <div className="flex gap-4">
+                                      <div className="text-center">
+                                        <div className="text-3xl font-bold text-gray-800">{timeLeft.days}</div>
+                                        <div className="text-xs text-gray-600">days</div>
+                                      </div>
+                                      <div className="text-center">
+                                        <div className="text-3xl font-bold text-gray-800">{timeLeft.hours}</div>
+                                        <div className="text-xs text-gray-600">hours</div>
+                                      </div>
+                                      <div className="text-center">
+                                        <div className="text-3xl font-bold text-gray-800">{timeLeft.minutes}</div>
+                                        <div className="text-xs text-gray-600">mins</div>
+                                      </div>
+                                    </div>
+                                    <p className="text-xs text-gray-500">
+                                      {new Date(event.date).toLocaleDateString()} at {new Date(event.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-1">
+                    <div className="bg-white rounded-lg shadow-lg p-6 sticky top-6">
+                      <h2 className="text-2xl font-bold text-gray-800 mb-6">Dashboard</h2>
+                      
+                      <ListSection
+                        title="Top 5 Goals"
+                        items={goals}
+                        setter={setGoals}
+                        icon={Target}
+                      />
+
+                      <ListSection
+                        title="5 Healthy Habits"
+                        items={habits}
+                        setter={setHabits}
+                        icon={Heart}
+                      />
+
+                      <ListSection
+                        title="5 Things to Be Cautious About"
+                        items={cautions}
+                        setter={setCautions}
+                        icon={AlertTriangle}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<CountdownTracker />);
+    </script>
+</body>
+</html>
